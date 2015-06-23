@@ -9,16 +9,19 @@ import Data.MonoTraversable
 import Control.Comonad.Store
 import Data.ComonadRelaStore
 
+
 class MonoComonad mono => MonoComonadRelaStore s mono | mono -> s where
-    orelapeek :: s -> w -> Element w
-    orelaseek :: s -> w -> w
+    orelapeek :: s -> mono -> Element mono
+    orelaseek :: s -> mono -> mono
 
     default orelapeek :: (ComonadRelaStore s w, w a ~ mono, Element (w a) ~ a)
                  => s -> mono -> Element mono
     orelapeek = relapeek
+    {-# INLINE orelapeek #-}
     default orelaseek :: (ComonadRelaStore s w, w a ~ mono)
                  => s -> mono -> mono
     orelaseek = relaseek
+    {-# INLINE orelaseek #-}
 
 class MonoComonad mono => MonoComonadStore s mono | mono -> s where
     opos        :: mono -> s
@@ -41,5 +44,6 @@ class MonoComonad mono => MonoComonadStore s mono | mono -> s where
     default opos :: (ComonadStore s w, w a ~ mono, Element (w a) ~ a)
                  => mono -> s
     opos = pos
+    {-# INLINE opos #-}
 
 

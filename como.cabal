@@ -20,10 +20,13 @@ library
   exposed-modules:     Data.Como
                        Data.MonoComonadStore
                        Data.ComonadRelaStore
+                       Data.Como.ComoVec
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.7 && <5
                      , mono-traversable
                      , comonad
+                     , vector
   hs-source-dirs:      src
+  ghc-options:         -O2
   default-language:    Haskell2010
