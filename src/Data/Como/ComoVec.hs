@@ -1,9 +1,11 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Data.Como.ComoVec where
 
@@ -14,14 +16,14 @@ import Data.MonoComonadStore
 import Control.Applicative
 
 
-data Boundary a = Dirichlet !a
-                | Neumann0
-                | BNearest !(a -> a)
-                | Periodic
+data Boundary a = BConstant !a
+                | BClamp
+                | BNearestF !(a -> a)
+                | BWrap
 
 data IxVec i v a = IV { ivVec   :: !(v a)
                       , ivRange :: !(i, i)
-                      } deriving Functor
+                      } deriving (Functor, Show, Eq)
 
 data ComoVec i v a b = CV { cvVec      :: !(IxVec i v a)
                           , cvBoundary :: i -> Boundary a
@@ -38,10 +40,10 @@ instance Functor v => Functor (ComoVec i v a) where
 
 instance MonoFunctor (Boundary a) where
     omap f b = case b of
-                 Dirichlet x -> let !y = f x   in Dirichlet y
-                 Neumann0    -> b
-                 BNearest g  -> let !h = f . g in BNearest h
-                 Periodic    -> b
+                 BConstant x -> let !y = f x   in BConstant y
+                 BClamp      -> b
+                 BNearestF g -> let !h = f . g in BNearestF h
+                 BWrap       -> b
     {-# INLINE omap #-}
 
 instance (MonoFunctor (v a), Element (v a) ~ a) => MonoFunctor (IxVec i v a) where
@@ -56,10 +58,10 @@ instance (V.Vector v a, Ix (i k), Integral k, Applicative i, MonoFunctor (v b), 
     oextract (CV (IV v r@(mn, mx)) b o i)
       | inRange r i = o i $ v V.! index r i
       | otherwise   = o i $ case b i of
-                              Dirichlet d -> d
-                              Neumann0    -> v V.! index r (clamper mn mx i)
-                              Periodic    -> v V.! index r (wrapper mn mx i)
-                              BNearest f  -> f (v V.! index r (clamper mn mx i))
+                              BConstant d -> d
+                              BClamp      -> v V.! index r (clamper mn mx i)
+                              BWrap       -> v V.! index r (wrapper mn mx i)
+                              BNearestF f -> f (v V.! index r (clamper mn mx i))
     {-# INLINE oextract #-}
     oextend f (CV iv b o i) = CV iv b (\i' _ -> f (CV iv b o i')) i
     {-# INLINE oextend #-}
@@ -93,18 +95,19 @@ peekCV
 peekCV i (CV (IV v r@(mn, mx)) b o _)
     | inRange r i = o i $ v V.! index r i
     | otherwise   = o i $ case b i of
-                            Dirichlet d -> d
-                            Neumann0    -> v V.! index r (clamper mn mx i)
-                            Periodic    -> v V.! index r (wrapper mn mx i)
-                            BNearest f  -> f (v V.! index r (clamper mn mx i))
+                            BConstant d -> d
+                            BClamp      -> v V.! index r (clamper mn mx i)
+                            BWrap       -> v V.! index r (wrapper mn mx i)
+                            BNearestF f -> f (v V.! index r (clamper mn mx i))
 {-# INLINE peekCV #-}
 
-clamper :: Applicative i
-        => Ord k
-        => i k
-        -> i k
-        -> i k
-        -> i k
+clamper
+    :: Applicative i
+      => Ord k
+    => i k
+    -> i k
+    -> i k
+    -> i k
 clamper rmn rmx = go
   where
     go = liftA3 clamp rmn rmx
@@ -114,12 +117,13 @@ clamper rmn rmx = go
     -- {-# INLINE clamp #-}
 {-# INLINE clamper #-}
 
-wrapper :: Applicative i
-        => Integral k
-        => i k
-        -> i k
-        -> i k
-        -> i k
+wrapper
+    :: Applicative i
+      => Integral k
+    => i k
+    -> i k
+    -> i k
+    -> i k
 wrapper rmn rmx = go
   where
     go = liftA3 wrap rmn rmx
@@ -132,9 +136,9 @@ wrapper rmn rmx = go
 -- concretizeV = concretizeV' id id
 concretizeV
     :: V.Vector v a
-    => Ix (i k)
-    => Integral k
-    => Applicative i
+      => Ix (i k)
+      => Integral k
+      => Applicative i
     => ComoVec (i k) v a a
     -> ComoVec (i k) v a a
 concretizeV vf = resizeCV (ivRange (cvVec vf)) vf
@@ -143,10 +147,10 @@ concretizeV vf = resizeCV (ivRange (cvVec vf)) vf
 -- concretizeV' df nf vf = resizeCV' (ivRange (cvVec vf)) df nf vf
 concretizeV'
     :: V.Vector v a
-    => V.Vector v b
-    => Ix (i k)
-    => Integral k
-    => Applicative i
+      => V.Vector v b
+      => Ix (i k)
+      => Integral k
+      => Applicative i
     => (a -> b)
     -> ((a -> a) -> b -> b)
     -> ComoVec (i k) v a b
@@ -157,9 +161,9 @@ concretizeV' df nf vf = resizeCV' df nf (ivRange (cvVec vf)) vf
 -- resizeCV = resizeCV' id id
 resizeCV
     :: V.Vector v a
-    => Ix (i k)
-    => Integral k
-    => Applicative i
+      => Ix (i k)
+      => Integral k
+      => Applicative i
     => (i k, i k)
     -> ComoVec (i k) v a a
     -> ComoVec (i k) v a a
@@ -172,10 +176,10 @@ resizeCV r' vf@(CV iv b o i) = CV (IV v' r') b (\_ x -> x) i
 
 resizeCV'
     :: V.Vector v a
-    => V.Vector v b
-    => Ix (i k)
-    => Integral k
-    => Applicative i
+      => V.Vector v b
+      => Ix (i k)
+      => Integral k
+      => Applicative i
     => (a -> b)
     -> ((a -> a) -> b -> b)
     -> (i k, i k)
@@ -184,12 +188,88 @@ resizeCV'
 resizeCV' df nf r' vf@(CV iv b o i) = CV (IV v' r') b' (\_ x -> x) i
   where
     b' i' = case b i' of
-              Dirichlet d -> Dirichlet $ df d
-              Neumann0    -> Neumann0
-              Periodic    -> Periodic
-              BNearest f  -> BNearest $ nf f
+              BConstant d -> BConstant $ df d
+              BClamp      -> BClamp
+              BWrap       -> BWrap
+              BNearestF f -> BNearestF $ nf f
     v' = V.fromListN (rangeSize r')
        . map (`peekCV` vf)
        $ range r'
 {-# INLINE resizeCV' #-}
 
+getIV
+    :: V.Vector v a
+      => V.Vector v b
+      => Ix (i k)
+      => Integral k
+      => Applicative i
+    => ComoVec (i k) v a b
+    -> IxVec (i k) v b
+getIV vf@(CV iv@(IV _ r) b o i) = IV v' r
+  where
+    v' = V.fromListN (rangeSize r)
+       . map (`peekCV` vf)
+       $ range r
+{-# INLINE getIV #-}
+
+getVec
+    :: V.Vector v a
+      => V.Vector v b
+      => Ix (i k)
+      => Integral k
+      => Applicative i
+    => ComoVec (i k) v a b
+    -> v b
+getVec = ivVec . getIV
+{-# INLINE getVec #-}
+
+extendC
+    :: V.Vector v a
+      => Ix (i k)
+      => Integral k
+      => Applicative i
+      => MonoFunctor (v a)
+      => Element (v a) ~ a
+    => (ComoVec (i k) v a a -> a)
+    -> ComoVec (i k) v a a
+    -> ComoVec (i k) v a a
+extendC f = concretizeV . oextend f
+{-# INLINE extendC #-}
+
+ckC
+    :: V.Vector v a
+      => Ix (i k)
+      => Integral k
+      => Applicative i
+      => MonoFunctor (v a)
+      => Element (v a) ~ a
+    => (ComoVec (i k) v a a -> a)
+    -> (ComoVec (i k) v a a -> a)
+    -> ComoVec (i k) v a a
+    -> a
+ckC g f = g . extendC f
+{-# INLINE ckC #-}
+
+replicateCV :: V.Vector v a
+              => Ix i
+              => Num i
+            => (i, i)
+            -> a
+            -> ComoVec i v a a
+replicateCV r x = CV (IV (V.replicate (rangeSize r) x) r)
+                     (const (BConstant x))
+                     (\_ y -> y)
+                     0
+
+generateCV :: V.Vector v a
+             => Ix i
+             => Num i
+            => (i, i)
+            -> a
+            -> (i -> a)
+            -> ComoVec i v a a
+generateCV r b f = CV (IV v r) (const (BConstant b)) (\_ y -> y) 0
+  where
+    v = V.fromListN (rangeSize r)
+      . map f
+      $ range r
