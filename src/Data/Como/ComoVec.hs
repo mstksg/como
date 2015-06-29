@@ -15,27 +15,26 @@ import Data.Ix
 import Data.MonoComonadStore
 import Control.Applicative
 
-
 data Boundary a = BConstant !a
                 | BClamp
                 | BNearestF !(a -> a)
                 | BWrap
 
-data IxVec i v a = IV { ivVec   :: !(v a)
-                      , ivRange :: !(i, i)
+data IxVec i v a = IV { _ivVec   :: !(v a)
+                      , _ivRange :: !(i, i)
                       } deriving (Functor, Show, Eq)
 
-data ComoVec i v a b = CV { cvVec      :: !(IxVec i v a)
-                          , cvBoundary :: i -> Boundary a
-                          , cvOut      :: !(i -> a -> b)
-                          , cvFocus    :: !i
+data ComoVec i v a b = CV { _cvIxVec    :: !(IxVec i v a)
+                          , _cvBoundary :: i -> Boundary a
+                          , _cvOut      :: !(i -> a -> b)
+                          , _cvFocus    :: !i
                           }
 
 type instance Element (Boundary a) = a
 type instance Element (IxVec i v a) = a
 type instance Element (ComoVec i v a b) = b
 
-instance Functor v => Functor (ComoVec i v a) where
+instance Functor (ComoVec i v a) where
     fmap f (CV v b o i) = CV v b (\i' -> f . o i') i
 
 instance MonoFunctor (Boundary a) where
@@ -51,7 +50,7 @@ instance (MonoFunctor (v a), Element (v a) ~ a) => MonoFunctor (IxVec i v a) whe
     {-# INLINE omap #-}
 
 instance (MonoFunctor (v b), Element (v b) ~ b) => MonoFunctor (ComoVec i v a b) where
-    omap f (CV v b o i) = CV v b (\i -> f . o i) i
+    omap f (CV v b o i) = CV v b (\i' -> f . o i') i
     {-# INLINE omap #-}
 
 instance (V.Vector v a, Ix (i k), Integral k, Applicative i, MonoFunctor (v b), Element (v b) ~ b) => MonoComonad (ComoVec (i k) v a b) where
@@ -71,11 +70,11 @@ instance (V.Vector v a, Ix (i k), MonoFunctor (v b), Element (v b) ~ b, Applicat
     {-# INLINE opos #-}
     opeek = peekCV
     {-# INLINE opeek #-}
-    opeeks f cv     = peekCV (f (cvFocus cv)) cv
+    opeeks f cv     = peekCV (f (_cvFocus cv)) cv
     {-# INLINE opeeks #-}
-    oseek i cv      = cv { cvFocus = i              }
+    oseek i cv      = cv { _cvFocus = i              }
     {-# INLINE oseek #-}
-    oseeks f cv     = cv { cvFocus = f (cvFocus cv) }
+    oseeks f cv     = cv { _cvFocus = f (_cvFocus cv) }
     {-# INLINE oseeks #-}
 
 instance (V.Vector v a, Ix (i k), Applicative i, MonoFunctor (v b), Element (v b) ~ b, Num (i k), Integral k) => MonoComonadRelaStore (i k) (ComoVec (i k) v a b) where
@@ -141,10 +140,10 @@ concretizeV
       => Applicative i
     => ComoVec (i k) v a a
     -> ComoVec (i k) v a a
-concretizeV vf = resizeCV (ivRange (cvVec vf)) vf
+concretizeV vf = resizeCV (_ivRange (_cvIxVec vf)) vf
 {-# INLINE concretizeV #-}
 
--- concretizeV' df nf vf = resizeCV' (ivRange (cvVec vf)) df nf vf
+-- concretizeV' df nf vf = resizeCV' (_ivRange (_cvIxVec vf)) df nf vf
 concretizeV'
     :: V.Vector v a
       => V.Vector v b
@@ -155,7 +154,7 @@ concretizeV'
     -> ((a -> a) -> b -> b)
     -> ComoVec (i k) v a b
     -> ComoVec (i k) v b b
-concretizeV' df nf vf = resizeCV' df nf (ivRange (cvVec vf)) vf
+concretizeV' df nf vf = resizeCV' df nf (_ivRange (_cvIxVec vf)) vf
 {-# INLINE concretizeV' #-}
 
 -- resizeCV = resizeCV' id id
@@ -220,8 +219,19 @@ getVec
       => Applicative i
     => ComoVec (i k) v a b
     -> v b
-getVec = ivVec . getIV
+getVec = _ivVec . getIV
 {-# INLINE getVec #-}
+
+concretizeGetV
+    :: V.Vector v a
+      => Ix (i k)
+      => Integral k
+      => Applicative i
+    => ComoVec (i k) v a a
+    -> (v a, ComoVec (i k) v a a)
+concretizeGetV cv = (_ivVec (_cvIxVec conc), conc)
+  where
+    conc = concretizeV cv
 
 extendC
     :: V.Vector v a
@@ -250,26 +260,70 @@ ckC
 ckC g f = g . extendC f
 {-# INLINE ckC #-}
 
-replicateCV :: V.Vector v a
-              => Ix i
-              => Num i
-            => (i, i)
-            -> a
-            -> ComoVec i v a a
+replicateCV
+    :: V.Vector v a
+      => Ix i
+      => Num i
+    => (i, i)
+    -> a
+    -> ComoVec i v a a
 replicateCV r x = CV (IV (V.replicate (rangeSize r) x) r)
                      (const (BConstant x))
                      (\_ y -> y)
                      0
 
-generateCV :: V.Vector v a
-             => Ix i
-             => Num i
-            => (i, i)
-            -> a
-            -> (i -> a)
-            -> ComoVec i v a a
+generateCV
+    :: V.Vector v a
+     => Ix i
+     => Num i
+    => (i, i)
+    -> a
+    -> (i -> a)
+    -> ComoVec i v a a
 generateCV r b f = CV (IV v r) (const (BConstant b)) (\_ y -> y) 0
   where
     v = V.fromListN (rangeSize r)
       . map f
       $ range r
+
+ivVec
+    :: Functor f
+    => (v a -> f (v b))
+    -> IxVec i v a
+    -> f (IxVec i v b)
+ivVec f iv@(IV v _) = (\v' -> iv { _ivVec = v' }) <$> f v
+
+ixRange
+    :: Functor f
+    => ((i, i) -> f (i, i))
+    -> IxVec i v a
+    -> f (IxVec i v a)
+ixRange f iv@(IV _ r) = (\r' -> iv { _ivRange = r' }) <$> f r
+
+cvIxVec
+    :: Functor f
+      => V.Vector v a
+      => Ix (i k)
+      => Integral k
+      => Applicative i
+    => (IxVec (i k) v a -> f (IxVec (i k) v a))
+    -> ComoVec (i k) v a a
+    -> f (ComoVec (i k) v a a)
+cvIxVec f cv = (\iv' -> cv { _cvIxVec = iv' }) <$> f (getIV cv)
+
+cvBoundary
+    :: Functor f
+    => ((i -> Boundary a) -> f (i -> Boundary a))
+    -> ComoVec i v a b
+    -> f (ComoVec i v a b)
+cvBoundary f cv@(CV _ b _ _) = (\b' -> cv { _cvBoundary = b' }) <$> f b
+
+cvFocus
+    :: Functor f
+    => (i -> f i)
+    -> ComoVec i v a b
+    -> f (ComoVec i v a b)
+cvFocus f cv@(CV _ _ _ i) = (\i' -> cv { _cvFocus = i' }) <$> f i
+
+getUnderlyingIV :: ComoVec i v a b -> IxVec i v a
+getUnderlyingIV = _cvIxVec
