@@ -14,6 +14,7 @@ import Data.Ix
 import Control.Comonad
 import Control.Comonad.Store.Class
 import Data.MonoComonadStore
+import Data.ComonadRelaStore
 import Control.Applicative
 
 data Boundary a = BConstant !a
@@ -54,12 +55,6 @@ instance (MonoFunctor (v b), Element (v b) ~ b) => MonoFunctor (ComoVec i v a b)
     omap f (CV v b o i) = CV v b (\i' -> f . o i') i
     {-# INLINE omap #-}
 
-instance (V.Vector v a, Ix (i k), Integral k, Applicative i, MonoFunctor (v b), Element (v b) ~ b) => MonoComonad (ComoVec (i k) v a b) where
-    oextract = extract
-    {-# INLINE oextract #-}
-    oextend = extend
-    {-# INLINE oextend #-}
-
 instance (V.Vector v a, Ix (i k), Integral k, Applicative i) => Comonad (ComoVec (i k) v a) where
     extract (CV (IV v r@(mn, mx)) b o i)
       | inRange r i = o i $ v V.! index r i
@@ -77,12 +72,24 @@ instance (V.Vector v a, Ix (i k), Integral k, Applicative i) => ComonadStore (i 
     {-# INLINE pos #-}
     peek = peekCV
     {-# INLINE peek #-}
-    peeks f cv     = peekCV (f (_cvFocus cv)) cv
+    peeks f cv      = peekCV (f (_cvFocus cv)) cv
     {-# INLINE peeks #-}
-    seek i cv      = cv { _cvFocus = i              }
+    seek i cv       = cv { _cvFocus = i              }
     {-# INLINE seek #-}
-    seeks f cv     = cv { _cvFocus = f (_cvFocus cv) }
+    seeks f cv      = cv { _cvFocus = f (_cvFocus cv) }
     {-# INLINE seeks #-}
+
+instance (V.Vector v a, Ix (i k), Integral k, Applicative i, Num (i k)) => ComonadRelaStore (i k) (ComoVec (i k) v a) where
+    relapeek i = peeks (+ i)
+    {-# INLINE relapeek #-}
+    relaseek i = seeks (+ i)
+    {-# INLINE relaseek #-}
+
+instance (V.Vector v a, Ix (i k), Integral k, Applicative i, MonoFunctor (v b), Element (v b) ~ b) => MonoComonad (ComoVec (i k) v a b) where
+    oextract = extract
+    {-# INLINE oextract #-}
+    oextend = extend
+    {-# INLINE oextend #-}
 
 instance (V.Vector v a, Ix (i k), MonoFunctor (v b), Element (v b) ~ b, Applicative i, Integral k) => MonoComonadStore (i k) (ComoVec (i k) v a b) where
     opos (CV _ _ _ i) = i
@@ -97,9 +104,9 @@ instance (V.Vector v a, Ix (i k), MonoFunctor (v b), Element (v b) ~ b, Applicat
     {-# INLINE oseeks #-}
 
 instance (V.Vector v a, Ix (i k), Applicative i, MonoFunctor (v b), Element (v b) ~ b, Num (i k), Integral k) => MonoComonadRelaStore (i k) (ComoVec (i k) v a b) where
-    orelapeek i = opeeks (+ i)
+    orelapeek = relapeek
     {-# INLINE orelapeek #-}
-    orelaseek i = oseeks (+ i)
+    orelaseek = relaseek
     {-# INLINE orelaseek #-}
 
 peekCV
@@ -369,3 +376,17 @@ cvSourceIV
     -> f (ComoVec i v a b)
 cvSourceIV f cv@(CV iv _ _ _) = (\iv' -> cv { _cvIxVec = iv' }) <$> f iv
 {-# INLINE cvSourceIV #-}
+
+-- cvVec  :: Lens' (ComoVec i v a) (v a)
+-- concretizes!
+cvVec
+    :: Functor f
+      => V.Vector v a
+      => Ix (i k)
+      => Integral k
+      => Applicative i
+    => (v a -> f (v a))
+    -> ComoVec (i k) v a a
+    -> f (ComoVec (i k) v a a)
+cvVec = cvIxVec . ivVec
+{-# INLINE cvVec #-}
