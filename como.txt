@@ -9,8 +9,19 @@
 @package como
 @version 0.1.0.0
 
-module Data.Como.ComoSource
-class ComoSource v a
+module Data.Vector.IxVec
+data IxVec i v a
+IV :: !(v a) -> !(i, i) -> IxVec i v a
+[_ivVec] :: IxVec i v a -> !(v a)
+[_ivRange] :: IxVec i v a -> !(i, i)
+ivVec :: Functor f => (v a -> f (v b)) -> IxVec i v a -> f (IxVec i v b)
+ivRange :: Functor f => ((i, i) -> f (i, i)) -> IxVec i v a -> f (IxVec i v a)
+instance Data.Traversable.Traversable v => Data.Traversable.Traversable (Data.Vector.IxVec.IxVec i v)
+instance Data.Foldable.Foldable v => Data.Foldable.Foldable (Data.Vector.IxVec.IxVec i v)
+instance (GHC.Classes.Eq i, GHC.Classes.Eq (v a)) => GHC.Classes.Eq (Data.Vector.IxVec.IxVec i v a)
+instance (GHC.Show.Show i, GHC.Show.Show (v a)) => GHC.Show.Show (Data.Vector.IxVec.IxVec i v a)
+instance GHC.Base.Functor v => GHC.Base.Functor (Data.Vector.IxVec.IxVec i v)
+instance (Data.MonoTraversable.MonoFunctor (v a), Data.MonoTraversable.Element (v a) ~ a) => Data.MonoTraversable.MonoFunctor (Data.Vector.IxVec.IxVec i v a)
 
 module Data.ComonadRelaStore
 class Comonad w => ComonadRelaStore s w | w -> s
@@ -29,16 +40,12 @@ oseek :: MonoComonadStore s mono => s -> mono -> mono
 oseeks :: MonoComonadStore s mono => (s -> s) -> mono -> mono
 oexperiment :: (MonoComonadStore s mono, Functor f) => (s -> f s) -> mono -> f (Element mono)
 
-module Data.Como.ComoVec
+module Data.Vector.ComoVec
 data Boundary a
 BConstant :: !a -> Boundary a
 BClamp :: Boundary a
 BNearestF :: !(a -> a) -> Boundary a
 BWrap :: Boundary a
-data IxVec i v a
-IV :: !(v a) -> !(i, i) -> IxVec i v a
-[_ivVec] :: IxVec i v a -> !(v a)
-[_ivRange] :: IxVec i v a -> !(i, i)
 data ComoVec i v a b
 CV :: !(IxVec i v a) -> (i -> Boundary a) -> !(i -> a -> b) -> !i -> ComoVec i v a b
 [_cvIxVec] :: ComoVec i v a b -> !(IxVec i v a)
@@ -59,8 +66,6 @@ extendC :: Vector v a => Ix (i k) => Integral k => Applicative i => MonoFunctor 
 ckC :: Vector v a => Ix (i k) => Integral k => Applicative i => MonoFunctor (v a) => Element (v a) ~ a => (ComoVec (i k) v a a -> a) -> (ComoVec (i k) v a a -> a) -> ComoVec (i k) v a a -> a
 replicateCV :: Vector v a => Ix i => Num i => (i, i) -> a -> ComoVec i v a a
 generateCV :: Vector v a => Ix i => Num i => (i, i) -> a -> (i -> a) -> ComoVec i v a a
-ivVec :: Functor f => (v a -> f (v b)) -> IxVec i v a -> f (IxVec i v b)
-ivRange :: Functor f => ((i, i) -> f (i, i)) -> IxVec i v a -> f (IxVec i v a)
 cvIxVec :: Functor f => Vector v a => Ix (i k) => Integral k => Applicative i => (IxVec (i k) v a -> f (IxVec (i k) v a)) -> ComoVec (i k) v a a -> f (ComoVec (i k) v a a)
 cvBoundary :: Functor f => ((i -> Boundary a) -> f (i -> Boundary a)) -> ComoVec i v a b -> f (ComoVec i v a b)
 cvFocus :: Functor f => (i -> f i) -> ComoVec i v a b -> f (ComoVec i v a b)
@@ -69,18 +74,12 @@ cvSourceVec :: Functor f => (v a -> f (v a)) -> ComoVec i v a b -> f (ComoVec i 
 cvVec :: Functor f => Vector v a => Ix (i k) => Integral k => Applicative i => (v a -> f (v a)) -> ComoVec (i k) v a a -> f (ComoVec (i k) v a a)
 cvVec_ :: Contravariant f => Functor f => Vector v a => Vector v b => Ix (i k) => Integral k => Applicative i => (v b -> f (v b)) -> ComoVec (i k) v a b -> f (ComoVec (i k) v a b)
 cvIxVec_ :: Functor f => Vector v a => Vector v b => Ix (i k) => Integral k => Applicative i => (IxVec (i k) v b -> f (IxVec (i k) v b)) -> ComoVec (i k) v a b -> f (ComoVec (i k) v a b)
-instance (GHC.Classes.Eq i, GHC.Classes.Eq (v a)) => GHC.Classes.Eq (Data.Como.ComoVec.IxVec i v a)
-instance (GHC.Show.Show i, GHC.Show.Show (v a)) => GHC.Show.Show (Data.Como.ComoVec.IxVec i v a)
-instance GHC.Base.Functor v => GHC.Base.Functor (Data.Como.ComoVec.IxVec i v)
-instance GHC.Base.Functor (Data.Como.ComoVec.ComoVec i v a)
-instance Data.MonoTraversable.MonoFunctor (Data.Como.ComoVec.Boundary a)
-instance (Data.MonoTraversable.MonoFunctor (v a), Data.MonoTraversable.Element (v a) ~ a) => Data.MonoTraversable.MonoFunctor (Data.Como.ComoVec.IxVec i v a)
-instance (Data.MonoTraversable.MonoFunctor (v b), Data.MonoTraversable.Element (v b) ~ b) => Data.MonoTraversable.MonoFunctor (Data.Como.ComoVec.ComoVec i v a b)
-instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), GHC.Real.Integral k, GHC.Base.Applicative i) => Control.Comonad.Comonad (Data.Como.ComoVec.ComoVec (i k) v a)
-instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), GHC.Real.Integral k, GHC.Base.Applicative i) => Control.Comonad.Store.Class.ComonadStore (i k) (Data.Como.ComoVec.ComoVec (i k) v a)
-instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), GHC.Real.Integral k, GHC.Base.Applicative i, GHC.Num.Num (i k)) => Data.ComonadRelaStore.ComonadRelaStore (i k) (Data.Como.ComoVec.ComoVec (i k) v a)
-instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), GHC.Real.Integral k, GHC.Base.Applicative i, Data.MonoTraversable.MonoFunctor (v b), Data.MonoTraversable.Element (v b) ~ b) => Data.MonoTraversable.MonoComonad (Data.Como.ComoVec.ComoVec (i k) v a b)
-instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), Data.MonoTraversable.MonoFunctor (v b), Data.MonoTraversable.Element (v b) ~ b, GHC.Base.Applicative i, GHC.Real.Integral k) => Data.MonoComonadStore.MonoComonadStore (i k) (Data.Como.ComoVec.ComoVec (i k) v a b)
-instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), GHC.Base.Applicative i, Data.MonoTraversable.MonoFunctor (v b), Data.MonoTraversable.Element (v b) ~ b, GHC.Num.Num (i k), GHC.Real.Integral k) => Data.MonoComonadStore.MonoComonadRelaStore (i k) (Data.Como.ComoVec.ComoVec (i k) v a b)
-
-module Data.Como
+instance GHC.Base.Functor (Data.Vector.ComoVec.ComoVec i v a)
+instance Data.MonoTraversable.MonoFunctor (Data.Vector.ComoVec.Boundary a)
+instance (Data.MonoTraversable.MonoFunctor (v b), Data.MonoTraversable.Element (v b) ~ b) => Data.MonoTraversable.MonoFunctor (Data.Vector.ComoVec.ComoVec i v a b)
+instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), GHC.Real.Integral k, GHC.Base.Applicative i) => Control.Comonad.Comonad (Data.Vector.ComoVec.ComoVec (i k) v a)
+instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), GHC.Real.Integral k, GHC.Base.Applicative i) => Control.Comonad.Store.Class.ComonadStore (i k) (Data.Vector.ComoVec.ComoVec (i k) v a)
+instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), GHC.Real.Integral k, GHC.Base.Applicative i, GHC.Num.Num (i k)) => Data.ComonadRelaStore.ComonadRelaStore (i k) (Data.Vector.ComoVec.ComoVec (i k) v a)
+instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), GHC.Real.Integral k, GHC.Base.Applicative i, Data.MonoTraversable.MonoFunctor (v b), Data.MonoTraversable.Element (v b) ~ b) => Data.MonoTraversable.MonoComonad (Data.Vector.ComoVec.ComoVec (i k) v a b)
+instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), Data.MonoTraversable.MonoFunctor (v b), Data.MonoTraversable.Element (v b) ~ b, GHC.Base.Applicative i, GHC.Real.Integral k) => Data.MonoComonadStore.MonoComonadStore (i k) (Data.Vector.ComoVec.ComoVec (i k) v a b)
+instance (Data.Vector.Generic.Base.Vector v a, GHC.Arr.Ix (i k), GHC.Base.Applicative i, Data.MonoTraversable.MonoFunctor (v b), Data.MonoTraversable.Element (v b) ~ b, GHC.Num.Num (i k), GHC.Real.Integral k) => Data.MonoComonadStore.MonoComonadRelaStore (i k) (Data.Vector.ComoVec.ComoVec (i k) v a b)
