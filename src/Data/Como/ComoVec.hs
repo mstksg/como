@@ -6,10 +6,15 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+-- TODO: offer custom/parameterizable boundary conditions?
+-- can solve ugliness of concretizeV' and weird conretizing getters
+-- requiring matching source and destiniation types.
+
 module Data.Como.ComoVec where
 
 import Data.MonoTraversable
 import qualified Data.Vector.Generic as V
+import Data.Functor.Contravariant
 import Data.Ix
 import Control.Comonad
 import Control.Comonad.Store.Class
@@ -36,8 +41,28 @@ type instance Element (Boundary a) = a
 type instance Element (IxVec i v a) = a
 type instance Element (ComoVec i v a b) = b
 
+-- instance (Applicative v, Num k, Applicative i) => Applicative (IxVec (i k) v) where
+--     pure x = IV (pure x) (pure 0, pure 0)
+--     IV vf rf <*> IV vx rx = IV undefined undefined
+
 instance Functor (ComoVec i v a) where
     fmap f (CV v b o i) = CV v b (\i' -> f . o i') i
+
+-- instance (Applicative v, Num k, Applicative i) => Applicative (ComoVec (i k) v a) where
+--     pure x = CV (IV (pure undefined) (pure 0, pure 0))
+--                 (\_ -> BConstant undefined)         -- undefined is no good, will fail on strict vectors.  maybe require monoid?
+--                 (\_ _ -> x)
+--                 (pure 0)
+--     cvf@(CV (IV vf (mnf, mxf)) bf of_ if_) <*> cvx@(CV (IV vx (mnx, mxx)) bx ox ix) = CV iv' undefined undefined undefined
+--       where
+--         iv' = IV v' r'
+--         r'  = (liftA2 min mnf mnx, liftA2 max mxf mxx)
+--         v' = V.fromListN (rangeSize r')
+--            . map (\i -> peekCV i cvf $ peekCV i cvx)
+--            $ range r'
+
+-- HEY consider maybe including indexing functions?  that would make this
+-- much easier.  hm.
 
 instance MonoFunctor (Boundary a) where
     omap f b = case b of
@@ -176,8 +201,8 @@ concretizeV'
       => Ix (i k)
       => Integral k
       => Applicative i
-    => (a -> b)
-    -> ((a -> a) -> b -> b)
+    => (a -> b)                 -- ???      mapping dirichlet boundaries
+    -> ((a -> a) -> b -> b)     -- ???      maps the neumann boundaries
     -> ComoVec (i k) v a b
     -> ComoVec (i k) v b b
 concretizeV' df nf vf = resizeCV' df nf (_ivRange (_cvIxVec vf)) vf
@@ -222,6 +247,7 @@ resizeCV' df nf r' vf@(CV _ b _ i) = CV (IV v' r') b' (\_ x -> x) i
        $ range r'
 {-# INLINE resizeCV' #-}
 
+-- does concretize
 getIV
     :: V.Vector v a
       => V.Vector v b
@@ -237,6 +263,7 @@ getIV vf@(CV (IV _ r) _ _ _) = IV v' r
        $ range r
 {-# INLINE getIV #-}
 
+-- does concretize
 getVec
     :: V.Vector v a
       => V.Vector v b
@@ -368,7 +395,7 @@ cvFocus
 cvFocus f cv@(CV _ _ _ i) = (\i' -> cv { _cvFocus = i' }) <$> f i
 {-# INLINE cvFocus #-}
 
--- cvSource :: Lens' (ComoVec i v a b) (IxVec i v a)
+-- cvSourceIV :: Lens' (ComoVec i v a b) (IxVec i v a)
 cvSourceIV
     :: Functor f
     => (IxVec i v a -> f (IxVec i v a))
@@ -377,7 +404,17 @@ cvSourceIV
 cvSourceIV f cv@(CV iv _ _ _) = (\iv' -> cv { _cvIxVec = iv' }) <$> f iv
 {-# INLINE cvSourceIV #-}
 
--- cvVec  :: Lens' (ComoVec i v a) (v a)
+-- cvSourceVec :: Lens' (ComoVec i v a b) (v a)
+--
+-- no concretization
+cvSourceVec
+    :: Functor f
+    => (v a -> f (v a))
+    -> ComoVec i v a b
+    -> f (ComoVec i v a b)
+cvSourceVec = cvSourceIV . ivVec
+
+-- cvVec  :: Lens' (ComoVec i v a a) (v a)
 -- concretizes!
 cvVec
     :: Functor f
@@ -390,3 +427,43 @@ cvVec
     -> f (ComoVec (i k) v a a)
 cvVec = cvIxVec . ivVec
 {-# INLINE cvVec #-}
+
+-- TODO: purely a Getter for cvVec
+-- x DONE
+--
+-- cvVec_ :: Getter (ComoVec i v a b) (v b)
+-- concretizes!
+--
+-- We're allowed to get a 'v b' from a ComoVec of source 'v a' because we
+-- concretize and forget about boundary conditions and other troublesome
+-- aspects of concretizing to a different type.
+--
+-- TODO: typecheck with Getter from lens
+-- x DONE
+cvVec_
+    :: Contravariant f
+      => Functor f
+      => V.Vector v a
+      => V.Vector v b
+      => Ix (i k)
+      => Integral k
+      => Applicative i
+    => (v b -> f (v b))
+    -> ComoVec (i k) v a b
+    -> f (ComoVec (i k) v a b)
+cvVec_ f cv = cv <$ f (getVec cv)
+
+-- cvIxVec :: Getter (ComoVec i v a b) (IxVec i v b)
+-- concretizes!
+cvIxVec_
+    :: Functor f
+      => V.Vector v a
+      => V.Vector v b
+      => Ix (i k)
+      => Integral k
+      => Applicative i
+    => (IxVec (i k) v b -> f (IxVec (i k) v b))
+    -> ComoVec (i k) v a b
+    -> f (ComoVec (i k) v a b)
+cvIxVec_ f cv = cv <$ f (getIV cv)
+{-# INLINE cvIxVec_ #-}
