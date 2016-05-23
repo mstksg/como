@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFoldable    #-}
 {-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE TypeFamilies      #-}
@@ -7,10 +8,12 @@
 module Data.Vector.IxVec where
 
 import           Data.MonoTraversable
+import           GHC.Generics
+import qualified Data.Binary          as B
 
 data IxVec i v a = IV { _ivVec   :: !(v a)
                       , _ivRange :: !(i, i)
-                      } deriving (Functor, Show, Eq, Foldable, Traversable)
+                      } deriving (Functor, Show, Eq, Foldable, Traversable, Generic)
 
 type instance Element (IxVec i v a) = a
 
@@ -18,6 +21,7 @@ instance (MonoFunctor (v a), Element (v a) ~ a) => MonoFunctor (IxVec i v a) whe
     omap f (IV v r) = IV (omap f v) r
     {-# INLINE omap #-}
 
+instance (B.Binary i, B.Binary (v a)) => B.Binary (IxVec i v a)
 
 -- instance (Applicative v, Num k, Applicative i) => Applicative (IxVec (i k) v) where
 --     pure x = IV (pure x) (pure 0, pure 0)
