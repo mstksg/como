@@ -16,12 +16,18 @@ IV :: !(v a) -> !(i, i) -> IxVec i v a
 [_ivRange] :: IxVec i v a -> !(i, i)
 ivVec :: Functor f => (v a -> f (v b)) -> IxVec i v a -> f (IxVec i v b)
 ivRange :: Functor f => ((i, i) -> f (i, i)) -> IxVec i v a -> f (IxVec i v a)
+instance GHC.Generics.Selector Data.Vector.IxVec.S1_0_1IxVec
+instance GHC.Generics.Selector Data.Vector.IxVec.S1_0_0IxVec
+instance GHC.Generics.Constructor Data.Vector.IxVec.C1_0IxVec
+instance GHC.Generics.Datatype Data.Vector.IxVec.D1IxVec
+instance GHC.Generics.Generic (Data.Vector.IxVec.IxVec i v a)
 instance Data.Traversable.Traversable v => Data.Traversable.Traversable (Data.Vector.IxVec.IxVec i v)
 instance Data.Foldable.Foldable v => Data.Foldable.Foldable (Data.Vector.IxVec.IxVec i v)
 instance (GHC.Classes.Eq i, GHC.Classes.Eq (v a)) => GHC.Classes.Eq (Data.Vector.IxVec.IxVec i v a)
 instance (GHC.Show.Show i, GHC.Show.Show (v a)) => GHC.Show.Show (Data.Vector.IxVec.IxVec i v a)
 instance GHC.Base.Functor v => GHC.Base.Functor (Data.Vector.IxVec.IxVec i v)
 instance (Data.MonoTraversable.MonoFunctor (v a), Data.MonoTraversable.Element (v a) ~ a) => Data.MonoTraversable.MonoFunctor (Data.Vector.IxVec.IxVec i v a)
+instance (Data.Binary.Class.Binary i, Data.Binary.Class.Binary (v a)) => Data.Binary.Class.Binary (Data.Vector.IxVec.IxVec i v a)
 
 module Data.ComonadRelaStore
 class Comonad w => ComonadRelaStore s w | w -> s
