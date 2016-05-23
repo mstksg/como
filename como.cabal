@@ -17,11 +17,11 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Data.Como
-                       Data.MonoComonadStore
+  exposed-modules:     Data.MonoComonadStore
                        Data.ComonadRelaStore
-                       Data.Como.ComoVec
-                       Data.Como.ComoSource
+                       Data.Vector.ComoVec
+                       Data.Vector.IxVec
+                       -- Data.Como.ComoSource
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.6 && <5

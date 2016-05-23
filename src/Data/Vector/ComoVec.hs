@@ -10,26 +10,23 @@
 -- can solve ugliness of concretizeV' and weird conretizing getters
 -- requiring matching source and destiniation types.
 
-module Data.Como.ComoVec where
+module Data.Vector.ComoVec where
 
-import Data.MonoTraversable
-import qualified Data.Vector.Generic as V
-import Data.Functor.Contravariant
-import Data.Ix
-import Control.Comonad
-import Control.Comonad.Store.Class
-import Data.MonoComonadStore
-import Data.ComonadRelaStore
-import Control.Applicative
+import           Control.Applicative
+import           Control.Comonad
+import           Control.Comonad.Store.Class
+import           Data.ComonadRelaStore
+import           Data.Functor.Contravariant
+import           Data.Ix
+import           Data.MonoComonadStore
+import           Data.MonoTraversable
+import           Data.Vector.IxVec
+import qualified Data.Vector.Generic         as V
 
 data Boundary a = BConstant !a
                 | BClamp
                 | BNearestF !(a -> a)
                 | BWrap
-
-data IxVec i v a = IV { _ivVec   :: !(v a)
-                      , _ivRange :: !(i, i)
-                      } deriving (Functor, Show, Eq)
 
 data ComoVec i v a b = CV { _cvIxVec    :: !(IxVec i v a)
                           , _cvBoundary :: i -> Boundary a
@@ -38,12 +35,7 @@ data ComoVec i v a b = CV { _cvIxVec    :: !(IxVec i v a)
                           }
 
 type instance Element (Boundary a) = a
-type instance Element (IxVec i v a) = a
 type instance Element (ComoVec i v a b) = b
-
--- instance (Applicative v, Num k, Applicative i) => Applicative (IxVec (i k) v) where
---     pure x = IV (pure x) (pure 0, pure 0)
---     IV vf rf <*> IV vx rx = IV undefined undefined
 
 instance Functor (ComoVec i v a) where
     fmap f (CV v b o i) = CV v b (\i' -> f . o i') i
@@ -70,10 +62,6 @@ instance MonoFunctor (Boundary a) where
                  BClamp      -> b
                  BNearestF g -> let !h = f . g in BNearestF h
                  BWrap       -> b
-    {-# INLINE omap #-}
-
-instance (MonoFunctor (v a), Element (v a) ~ a) => MonoFunctor (IxVec i v a) where
-    omap f (IV v r) = IV (omap f v) r
     {-# INLINE omap #-}
 
 instance (MonoFunctor (v b), Element (v b) ~ b) => MonoFunctor (ComoVec i v a b) where
@@ -344,23 +332,6 @@ generateCV r b f = CV (IV v r) (const (BConstant b)) (\_ y -> y) 0
 
 -- Lenses
 
--- ivVec :: Lens (IxVec i v a) (IxVec a v b) (v a) (v b)
-ivVec
-    :: Functor f
-    => (v a -> f (v b))
-    -> IxVec i v a
-    -> f (IxVec i v b)
-ivVec f iv@(IV v _) = (\v' -> iv { _ivVec = v' }) <$> f v
-{-# INLINE ivVec #-}
-
--- ivRange :: Lens' (IxVec i v a) (i, i)
-ivRange
-    :: Functor f
-    => ((i, i) -> f (i, i))
-    -> IxVec i v a
-    -> f (IxVec i v a)
-ivRange f iv@(IV _ r) = (\r' -> iv { _ivRange = r' }) <$> f r
-{-# INLINE ivRange #-}
 
 -- cvIxVec :: Lens' (ComoVec i v a a) (IxVec i v a)
 -- concretizes!
